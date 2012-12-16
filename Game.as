@@ -15,6 +15,10 @@ package {
 		var ballFrames;
 		var ballBuffer;
 		var ballShadow;
+		var billboardBuffer;
+		var player;
+
+		var obstacles = [];
 
 		function drawRoad() {
 			var h = 10;
@@ -63,15 +67,92 @@ package {
 
 		var keys = {};
 
+		function advanceObstacles(pixels) {
+			for (var i = 0; i < obstacles.length; i++) {
+				var o = obstacles[i];
+				if (o['type'] == 'player') continue;
+				o['roadSpacePosition'].y += pixels;
+			}
+		}
+
+		function sortOrder(a, b) {
+			if (a['roadSpacePosition'].y < b['roadSpacePosition'].y) {
+				return -1;
+			} else if (a['roadSpacePosition'].y > b['roadSpacePosition'].y) {
+				return 1;
+			} else {
+				return 0;
+			}
+		}
+
+		function sortObstacles() {
+			obstacles.sort(sortOrder);
+		}
+
 		function billboards() {
-			var billboardX = mouseX;//mouseX;//roadBitmapData.width / 2;
-			var billboardY = mouseY;//roadBitmapData.height / 2;
-			var billboardZ = 0;
+			billboardBuffer.fillRect(billboardBuffer.rect, 0);
+			sortObstacles();
 
-			var result = road.local3DToGlobal(new Vector3D(billboardX, billboardY, billboardZ));
+			for (var i = 0; i < obstacles.length; i++) {
+				var o = obstacles[i];
+				if (o['deleted']) continue;
 
-//			marker.x = result.x;
-//			marker.y = result.y;
+				var pos = o['roadSpacePosition'];
+				var lowerLeftPos = new Vector3D(pos.x - o['roadSpaceSize'].x/2, pos.y, 0);
+				var lowerRightPos = new Vector3D(pos.x + o['roadSpaceSize'].x/2, pos.y, 0);
+				var lowerLeftPosOnScreen = road.local3DToGlobal(lowerLeftPos);
+				var lowerRightPosOnScreen = road.local3DToGlobal(lowerRightPos);
+
+				if (lowerRightPosOnScreen.y > billboardBuffer.height) {
+					o['deleted'] = true;
+					continue;
+				}
+
+				var w = lowerRightPosOnScreen.x - lowerLeftPosOnScreen.x;
+				var h = (w/o['roadSpaceSize'].x) * o['roadSpaceSize'].y;//lowerRightPosOnScreen.y - upperLeftPosOnScreen.y;
+
+				if (o['type'] == 'player') {
+//					ballBuffer.fillRect(ballBuffer.rect, 0xffffffff);
+
+					var tmp = new BitmapData(ballFrames.width, ballFrames.width);
+					tmp.copyPixels(ballFrames, new Rectangle(0, ballFrames.width * ballFrame, ballFrames.width, ballFrames.width), new Point(0, 0));
+					var mat = new Matrix();
+					mat.tx = lowerLeftPosOnScreen.x - 30;	
+					mat.ty = lowerLeftPosOnScreen.y - h + 155;
+					billboardBuffer.draw(tmp, mat);
+
+/*					var p = new Point(lowerLeftPosOnScreen.x - 30, lowerLeftPosOnScreen.y - h + 155);
+					billboardBuffer.copyPixels(ballFrames, new Rectangle(0, ballFrames.width * ballFrame, ballFrames.width, ballFrames.width), p);
+*/
+
+//					ball.x = (lowerLeftPosOnScreen.x + lowerRightPosOnScreen.x)/2;
+//					ball.y = lowerLeftPosOnScreen.y;
+				} else {
+					billboardBuffer.fillRect(
+						new Rectangle(lowerLeftPosOnScreen.x, lowerLeftPosOnScreen.y - h, w, h),
+						0xffffffff
+					);			
+				}
+			}
+		}
+
+		function addObstacle(obstacle) {
+			for (var i = 0; i < obstacles.length; i++) {
+				if (obstacles[i]['deleted']) {
+					obstacles[i] = obstacle;
+					return;
+				}
+			}
+			obstacles.push(obstacle);
+		}
+
+		function spawnObstacles() {
+			if (Math.random() < 0.05) {
+				addObstacle({
+					'roadSpacePosition' : new Vector3D(roadBitmapData.width / 2, 0, 0), // middle bottom
+					'roadSpaceSize' : new Point(10, 10)
+				});
+			}
 		}
 
 		var ballSizeX = 0;
@@ -85,30 +166,30 @@ package {
 		var ballPositionInRoadSpace = new Point(500, 495);
 		var ballFrame = 0;
 		function advanceBall() {
-			ballSizeX = desiredBallSize * 0.1 + ballSizeX * 0.9;
+/*			ballSizeX = desiredBallSize * 0.1 + ballSizeX * 0.9;
 			ballSizeY = desiredBallSize * 0.1 + ballSizeY * 0.9;
 
 			ballBuffer.fillRect(ballBuffer.rect, 0xffffffff);
-			ballBuffer.copyPixels(ballFrames, new Rectangle(0, ballFrames.width * ballFrame, ballFrames.width, ballFrames.width), new Point(0,0));
+			ballBuffer.copyPixels(ballFrames, new Rectangle(0, ballFrames.width * ballFrame, ballFrames.width, ballFrames.width), new Point(0,0));*/
 			ballFrame++;
 			if (ballFrame == 30) {
 				ballFrame = 0;
 			}
 
-			ball.scaleX = ballSizeX;
+/*			ball.scaleX = ballSizeX;
 			ballShadow.scaleX = ballSizeX * 1.2;
 			ball.scaleY = ballSizeY;
 			ballShadow.scaleY = ballSizeY * 1.2;
 
 			var v = road.local3DToGlobal(new Vector3D(ballPositionInRoadSpace.x, ballPositionInRoadSpace.y, 0))
 			ball.x = v.x - 120;
-			ball.y = v.y - 160;
+			ball.y = v.y - ball.height;
 
 			ballShadow.x = ball.x - 15 * ballShadow.scaleX;
 			ballShadow.y = ball.y - 15 * ballShadow.scaleY;
 			ballShadow.alpha = 0.5;
 			headlights.x = ballPositionInRoadSpace.x - headlights.width/2 + 15 * ballSizeX - 14;
-
+*/
 		}
 
 		var xs = 0;
@@ -121,7 +202,34 @@ package {
 			}
 			xs *= 0.85;
 			if (Math.abs(xs) < 0.5) xs = 0;
-			ballPositionInRoadSpace.x += xs;
+
+			player['roadSpacePosition'].x += xs;
+//			ballPositionInRoadSpace.x += xs;
+		}
+
+		function intersections(pixelsMoved) {
+			var playerRect = null;
+			for (var i = 0; i < obstacles.length; i++) {
+				var o = obstacles[i];
+				if (o['deleted']) continue;
+				if (o['type'] == 'player') {
+					playerRect = new Rectangle(o['roadSpacePosition'].x - o['roadSpaceSize'].x/2, o['roadSpacePosition'].y, o['roadSpaceSize'].x, 2);
+				}
+			}
+			if (playerRect == null) {
+				trace('player not found');
+				return;
+			}
+
+			for (i = 0; i < obstacles.length; i++) {
+				o = obstacles[i];
+				if (o['deleted']) continue;
+				if (o['type'] == 'player') continue;
+				var obstacleRect = new Rectangle(o['roadSpacePosition'].x - o['roadSpaceSize'].x/2, o['roadSpacePosition'].y, o['roadSpaceSize'].x, pixelsMoved);
+				if (obstacleRect.intersects(playerRect)) {
+					trace('Collision with ' + i);
+				}
+			}
 		}
 
 		function refresh(evt) {
@@ -135,8 +243,13 @@ package {
 			lastRefreshStart = getTimer();
 			var pixelsMoved = Math.ceil((elapsed/1000.0) * speedRoadPixelsPerSecond);
 			advanceRoad(pixelsMoved);
+
+			advanceObstacles(pixelsMoved);
+			intersections(pixelsMoved);
+
 			advanceBall();
 			billboards();
+			spawnObstacles();
 		}
 
 		public function Game() {
@@ -158,13 +271,22 @@ package {
 			road.addChild(headlights);
 
 			ballFrames = new GooBall();						
-			ballBuffer = new BitmapData(230, 230, true, 0);
-			ball = new Bitmap(ballBuffer);
+//			ballBuffer = new BitmapData(230, 230, true, 0);
+//			ball = new Bitmap(ballBuffer);
 			ballShadow = new Bitmap(new Shadow());
 			addChild(ballShadow);
-			addChild(ball);
+//			addChild(ball);
 
+			billboardBuffer = new BitmapData(stage.stageWidth, stage.stageHeight + 50, true);
+			addChild(new Bitmap(billboardBuffer));
 			marker.visible = false;
+
+			player = {
+				'type' : 'player',
+				'roadSpacePosition' : new Vector3D(roadBitmapData.width / 2, roadBitmapData.height - 20, 0), // middle bottom
+				'roadSpaceSize' : new Point(24, 48)
+			};
+			addObstacle(player);
 
 			lastRefreshStart = getTimer();
 			addEventListener(Event.ENTER_FRAME, refresh);
