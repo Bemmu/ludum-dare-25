@@ -1,4 +1,7 @@
 /*
+Made by me@bemmu.com in ~48 hours
+
+Note to self:
 montage 0001.png 0002.png 0003.png 0004.png 0005.png 0006.png 0007.png 0008.png 0009.png 0010.png 0011.png 0012.png 0013.png 0014.png 0015.png 0016.png 0017.png 0018.png 0019.png 0020.png 0021.png 0022.png 0023.png 0024.png 0025.png 0026.png 0027.png 0028.png 0029.png 0030.png 0031.png 0032.png 0033.png 0034.png 0035.png -tile 1x -geometry 230x -background Transparent goo.png
 */
 
